@@ -344,7 +344,6 @@
     white-space: nowrap;
   }
   .badge-xtz { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(0,200,255,0.2); }
-  .badge-usd { background: rgba(0,200,255,0.07); color: #7dd6e8; border: 1px solid rgba(0,200,255,0.12); }
   .badge-nft { background: var(--warn-dim); color: var(--warn); border: 1px solid rgba(255,107,53,0.3); }
 
   .chevron { color: var(--muted); font-size: 12px; transition: transform 0.2s; flex-shrink: 0; }
@@ -382,7 +381,6 @@
   }
   .tx-time { color: var(--muted); flex-shrink: 0; }
   .tx-amount { color: var(--blue); flex-shrink: 0; }
-  .tx-usd { color: #7dd6e8; font-size: 11px; flex-shrink: 0; }
   .tx-token { color: var(--warn); font-size: 11px; }
 
   .tzkt-link {
@@ -482,8 +480,7 @@
         <div class="step" id="step1"><div class="step-dot"></div><span>Fetching account profile...</span></div>
         <div class="step" id="step2"><div class="step-dot"></div><span>Fetching outgoing XTZ transfers...</span></div>
         <div class="step" id="step3"><div class="step-dot"></div><span>Fetching NFT transfers where wallet was seller...</span></div>
-        <div class="step" id="step4"><div class="step-dot"></div><span>Looking up historical XTZ/USD prices...</span></div>
-        <div class="step" id="step5"><div class="step-dot"></div><span>Cross-referencing for circular trades...</span></div>
+        <div class="step" id="step4"><div class="step-dot"></div><span>Cross-referencing for circular trades...</span></div>
       </div>
     </div>
   </div>
@@ -601,31 +598,10 @@ async function getNFTSales(wallet) {
   return map;
 }
 
-// ── Historical XTZ/USD prices ─────────────────────────────────────────────────
-async function buildPriceCache(timestamps) {
-  if(!timestamps.length) return {};
-  const sorted=[...timestamps].sort();
-  const from=sorted[0].slice(0,10), to=sorted[sorted.length-1].slice(0,10);
-  try {
-    const quotes=await fetchAll(`${TZKT}/quotes`,{'timestamp.ge':from+'T00:00:00Z','timestamp.le':to+'T23:59:59Z',select:'timestamp,usd'});
-    const cache={};
-    for(const q of quotes) cache[q.timestamp.slice(0,10)]=q.usd;
-    return cache;
-  } catch(e) {
-    console.warn('Price fetch failed:',e);
-    return {};
-  }
-}
 
-function getUSD(xtz,ts,cache){
-  if(!cache||!ts) return null;
-  const price=cache[ts.slice(0,10)];
-  return price!=null ? xtz*price : null;
-}
-function fmtUSD(v){
-  if(v==null) return null;
-  return v>=1000?'$'+v.toLocaleString(undefined,{maximumFractionDigits:0}):'$'+v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
-}
+
+
+
 
 // ── Cross-reference ───────────────────────────────────────────────────────────
 function crossReference(sentTo,salesTo){
@@ -648,7 +624,7 @@ function tokenLabel(t){
 }
 
 // ── Render results ────────────────────────────────────────────────────────────
-function renderResults(wallet,findings,priceCache){
+function renderResults(wallet,findings){
   const container=$('results');
   container.style.display='block';
 
@@ -669,8 +645,6 @@ function renderResults(wallet,findings,priceCache){
 
   const totalXtz=findings.reduce((s,f)=>s+f.totalXtz,0);
   const totalNfts=findings.reduce((s,f)=>s+f.nftPurchases.length,0);
-  let totalUsd=0, hasUsd=false;
-  for(const f of findings) for(const tx of f.txns){ const u=getUSD(tx.xtz,tx.timestamp,priceCache); if(u!=null){totalUsd+=u;hasUsd=true;} }
 
   let html=`
     <div class="result-header">
@@ -691,7 +665,6 @@ function renderResults(wallet,findings,priceCache){
       <div class="summary-total">
         <div class="summary-total-label">Total XTZ sent</div>
         <div class="summary-total-val">${totalXtz.toFixed(2)} XTZ</div>
-        ${hasUsd?`<div class="summary-total-sub">${fmtUSD(totalUsd)} at time of transfer</div>`:''}
       </div>
       <div class="summary-total">
         <div class="summary-total-label">NFT buy-backs</div>
@@ -701,15 +674,11 @@ function renderResults(wallet,findings,priceCache){
     <div class="findings-label">Flagged wallets</div>`;
 
   findings.forEach((f,i)=>{
-    let cpUsd=0, cpHasUsd=false;
-    for(const tx of f.txns){ const u=getUSD(tx.xtz,tx.timestamp,priceCache); if(u!=null){cpUsd+=u;cpHasUsd=true;} }
 
     const xtzRows=f.txns.slice(0,5).map(tx=>{
-      const usd=getUSD(tx.xtz,tx.timestamp,priceCache);
       return `<div class="tx-row">
         <span class="tx-time">${formatDate(tx.timestamp)}</span>
         <span class="tx-amount">${tx.xtz.toFixed(4)} XTZ</span>
-        ${usd!=null?`<span class="tx-usd">${fmtUSD(usd)}</span>`:''}
         <a class="tzkt-link" href="https://tzkt.io/${tx.hash}" target="_blank">tx &#8599;</a>
       </div>`;
     }).join('');
@@ -734,7 +703,6 @@ function renderResults(wallet,findings,priceCache){
           <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
             <div class="finding-badges">
               <span class="badge badge-xtz">${f.totalXtz.toFixed(2)} XTZ</span>
-              ${cpHasUsd?`<span class="badge badge-usd">${fmtUSD(cpUsd)}</span>`:''}
               <span class="badge badge-nft">${f.nftPurchases.length} NFT buy${f.nftPurchases.length>1?'s':''}</span>
             </div>
             <span class="chevron">&#9660;</span>
@@ -775,7 +743,7 @@ async function startScan(){
   const btn=$('scanBtn');
   btn.disabled=true; btn.textContent='SCANNING';
   $('progress').style.display='block';
-  for(let i=1;i<=5;i++) setStep(i,'');
+  for(let i=1;i<=4;i++) setStep(i,'');
   setStep(1,'active'); setProgress(5);
 
   try {
@@ -789,16 +757,13 @@ async function startScan(){
     const salesTo=await getNFTSales(wallet);
     setStep(3,'done'); setStep(4,'active'); setProgress(65);
 
-    const allTs=Object.values(sentTo).flatMap(v=>v.txns.map(t=>t.timestamp));
-    const priceCache=await buildPriceCache(allTs);
-    setStep(4,'done'); setStep(5,'active'); setProgress(88);
 
     const findings=crossReference(sentTo,salesTo);
-    setStep(5,'done'); setProgress(100);
+    setStep(4,'done'); setProgress(100);
 
     await new Promise(r=>setTimeout(r,300));
     $('progress').style.display='none';
-    renderResults(wallet,findings,priceCache);
+    renderResults(wallet,findings);
 
   } catch(err) {
     $('progress').style.display='none';
