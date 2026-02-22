@@ -338,8 +338,8 @@
       <div class="progress-bar" id="progressBar" style="width:0%"></div>
     </div>
     <div class="progress-steps">
-      <div class="step" id="step1"><div class="step-dot"></div><span>Fetching your token balances held by others...</span></div>
-      <div class="step" id="step2"><div class="step-dot"></div><span>Counting unique pieces per collector...</span></div>
+      <div class="step" id="step1"><div class="step-dot"></div><span>Fetching your FA2 collections from Objkt...</span></div>
+      <div class="step" id="step2"><div class="step-dot"></div><span>Fetching all holders across your collections...</span></div>
     </div>
   </div>
 
@@ -347,15 +347,15 @@
 
   <div class="api-limits">
     <div style="display:flex;align-items:center;">
-      <a href="https://tzkt.io" target="_blank" style="color:var(--accent);font-weight:700;letter-spacing:0.05em;text-decoration:none;">Powered by TzKT API</a>
+      <a href="https://data.objkt.com" target="_blank" style="color:var(--accent);font-weight:700;letter-spacing:0.05em;text-decoration:none;">Powered by Objkt API</a>
       <span style="color:var(--muted);font-size:10px;margin-left:8px">Free Tier</span>
     </div>
     <div style="display:flex;align-items:center;">
-      <div class="api-stat"><span class="api-stat-val">10</span><span class="api-stat-label">calls / sec</span></div>
+      <div class="api-stat"><span class="api-stat-val">120</span><span class="api-stat-label">req / min</span></div>
       <div class="api-stat-divider"></div>
-      <div class="api-stat"><span class="api-stat-val">500k</span><span class="api-stat-label">calls / day</span></div>
+      <div class="api-stat"><span class="api-stat-val">Free</span><span class="api-stat-label">no auth</span></div>
       <div class="api-stat-divider"></div>
-      <div class="api-stat"><span class="api-stat-val">Standard</span><span class="api-stat-label">support</span></div>
+      <div class="api-stat"><span class="api-stat-val">GraphQL</span><span class="api-stat-label">endpoint</span></div>
     </div>
   </div>
 
@@ -366,7 +366,6 @@
 
 </div>
 <script>
-const TZKT = 'https://api.tzkt.io/v1';
 const $ = id => document.getElementById(id);
 
 function showError(msg) { const e=$('error'); e.textContent=msg; e.style.display='block'; }
@@ -376,85 +375,104 @@ function setProgress(p) { $('progressBar').style.width=p+'%'; }
 function shortAddr(a) { return a?a.slice(0,8)+'...'+a.slice(-6):'—'; }
 
 // Fetch all pages concurrently once we know the total count
-async function fetchAllFast(url, params={}) {
-  const limit = 10000; // max TzKT allows
+const OBJKT_GQL = 'https://data.objkt.com/v3/graphql';
 
-  // First request — get first page and see if we need more
-  const p = new URLSearchParams({...params, limit, offset: 0});
-  const r = await fetch(`${url}?${p}`);
-  if(!r.ok) throw new Error(`API ${r.status}`);
-  const first = await r.json();
-  if(!first||!first.length||first.length<limit) return first||[];
-
-  // Need more pages — fire them all in parallel
-  // TzKT free tier: up to 10 calls/sec, so batch parallel fetches
-  const results = [...first];
-  let offset = limit;
-  while(true) {
-    // Fire up to 5 pages at once
-    const batch = [];
-    for(let i=0;i<5;i++) {
-      const bp = new URLSearchParams({...params, limit, offset: offset + i*limit});
-      batch.push(fetch(`${url}?${bp}`).then(r=>r.ok?r.json():[]).catch(()=>[]));
-    }
-    const pages = await Promise.all(batch);
-    let gotAny = false;
-    for(const page of pages) {
-      if(page&&page.length) { results.push(...page); gotAny=true; }
-    }
-    if(!gotAny||pages.every(p=>!p||p.length<limit)) break;
-    offset += 5*limit;
-    await new Promise(r=>setTimeout(r,200)); // brief pause between batches
-  }
-  return results;
+async function objktQuery(query, variables={}) {
+  const r = await fetch(OBJKT_GQL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables }),
+  });
+  if(!r.ok) throw new Error(`Objkt API error: ${r.status}`);
+  const json = await r.json();
+  if(json.errors) throw new Error(json.errors[0]?.message || 'GraphQL error');
+  return json.data;
 }
 
 async function getCollectors(wallet) {
-  setStep(1,'active'); setProgress(5);
+  setStep(1,'active'); setProgress(10);
 
-  // Run both queries in parallel — minted tokens + who holds them
-  const [minted, balances] = await Promise.all([
-    fetchAllFast(`${TZKT}/tokens`, {
-      'creator': wallet,
-      select: 'contract,tokenId,metadata',
-    }),
-    fetchAllFast(`${TZKT}/tokens/balances`, {
-      'token.creator': wallet,
-      'balance.gt': 0,
-      select: 'account,token',
-    }),
-  ]);
+  // Step 1: get all FA2 collections where this wallet is creator.
+  // This is fast — one query, returns pre-aggregated collection data.
+  const faData = await objktQuery(`
+    query Collections($wallet: String!) {
+      fa(where: {
+        type: { _eq: "fa2" }
+        creator_address: { _eq: $wallet }
+      }) {
+        contract
+      }
+    }
+  `, { wallet });
 
-  setStep(1,'done'); setStep(2,'active'); setProgress(70);
+  const contracts = (faData?.fa || []).map(f => f.contract).filter(Boolean);
+  if(!contracts.length) throw new Error('No FA2 collections found for this wallet on Objkt.');
 
-  // Build set of valid NFT token keys (filter out fungibles)
-  const tokenKeys = new Set();
-  for(const t of minted) {
-    if(!t.contract?.address) continue;
-    const dec = t.metadata?.decimals!=null ? parseInt(t.metadata.decimals) : 0;
-    if(dec > 0) continue;
-    tokenKeys.add(`${t.contract.address}:${t.tokenId}`);
-  }
+  setStep(1,'done'); setStep(2,'active'); setProgress(30);
 
-  if(!tokenKeys.size) throw new Error('No minted tokens found for this wallet.');
+  // Step 2: fetch all token_holders across those contracts in parallel pages.
+  // Filter: fa2 contract in our list, quantity > 0, not the artist.
+  // We paginate and fire pages in parallel for speed.
+  const holderMap = {}; // address → Set of unique fa_contract:token_id
 
-  // Count unique pieces per holder
-  const holderMap = {};
-  for(const b of balances) {
-    const addr = b.account?.address || b.account;
-    if(!addr || addr===wallet) continue;
-    if(!addr.startsWith('tz')) continue;
-    const key = `${b.token?.contract?.address}:${b.token?.tokenId}`;
-    if(!tokenKeys.has(key)) continue;
-    if(!holderMap[addr]) holderMap[addr] = new Set();
-    holderMap[addr].add(key);
+  const limit = 500;
+  let offset = 0;
+  let total = 0;
+
+  while(true) {
+    // Fire 4 pages at once
+    const pagePromises = [];
+    for(let i = 0; i < 4; i++) {
+      pagePromises.push(objktQuery(`
+        query Holders($contracts: [String!]!, $wallet: String!, $limit: Int!, $offset: Int!) {
+          token_holder(
+            where: {
+              token: { fa_contract: { _in: $contracts } }
+              quantity: { _gt: "0" }
+              holder_address: { _neq: $wallet }
+            }
+            limit: $limit
+            offset: $offset
+          ) {
+            holder_address
+            token { token_id fa_contract }
+          }
+        }
+      `, { contracts, wallet, limit, offset: offset + i * limit }));
+    }
+
+    const pages = await Promise.all(pagePromises);
+    let gotAny = false;
+
+    for(const data of pages) {
+      const rows = data?.token_holder || [];
+      if(rows.length) gotAny = true;
+      for(const row of rows) {
+        const addr = row.holder_address;
+        if(!addr || !addr.startsWith('tz')) continue;
+        const key = `${row.token?.fa_contract}:${row.token?.token_id}`;
+        if(!holderMap[addr]) holderMap[addr] = new Set();
+        holderMap[addr].add(key);
+      }
+      total += rows.length;
+    }
+
+    // Stop if the last page was empty or under limit
+    const lastPage = pages[pages.length - 1]?.token_holder || [];
+    if(!gotAny || lastPage.length < limit) break;
+
+    offset += 4 * limit;
+    setProgress(30 + Math.min(65, Math.round((total / 5000) * 65)));
   }
 
   setStep(2,'done'); setProgress(100);
 
-  return Object.entries(holderMap)
+  const collectors = Object.entries(holderMap)
     .map(([addr, pieces]) => ({ addr, uniquePieces: pieces.size }))
     .sort((a,b) => b.uniquePieces - a.uniquePieces);
+
+  if(!collectors.length) throw new Error('No collectors found for this wallet.');
+  return collectors;
 }
 
 function downloadCSV(collectors, wallet, topN) {
