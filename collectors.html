@@ -396,15 +396,12 @@ async function fetchAll(url, params={}) {
 async function getCollectors(wallet) {
   setStep(1,'active'); setProgress(10);
 
-  // Use /v1/tokens?creator=wallet — the correct TzKT endpoint for all tokens
-  // this address minted. Covers all platforms: Objkt, FxHash, Teia, etc.
+  // Step 1: fetch all tokens this wallet minted
   const minted = await fetchAll(`${TZKT}/tokens`, {
     'creator': wallet,
     select: 'contract,tokenId,metadata',
   });
 
-  // Filter out fungibles (decimals > 0). That's the only reliable filter —
-  // don't check artifactUri as it's often absent from inline responses.
   const tokenKeys = new Set();
   for(const t of minted) {
     if(!t.contract?.address) continue;
@@ -413,45 +410,34 @@ async function getCollectors(wallet) {
     tokenKeys.add(`${t.contract.address}:${t.tokenId}`);
   }
 
-  if(!tokenKeys.size) throw new Error('No minted tokens found for this wallet. Make sure you are entering the wallet you mint from.');
+  if(!tokenKeys.size) throw new Error('No minted tokens found for this wallet.');
 
   setStep(1,'done'); setStep(2,'active'); setProgress(40);
 
-  // Step 2: fetch current holders per contract, count unique pieces per holder
-  const contracts = [...new Set([...tokenKeys].map(k=>k.split(':')[0]))];
+  // Step 2: fetch ALL token balances where creator=wallet in a single paginated call.
+  // This avoids the slow per-contract loop entirely — one query, all holders.
+  const holderMap = {};
 
-  // Fetch all current holders for tokens from these contracts
-  // We fetch per-contract to stay within API limits
-  const holderMap = {}; // address → Set of unique tokenKeys they hold
+  const balances = await fetchAll(`${TZKT}/tokens/balances`, {
+    'token.creator': wallet,
+    'balance.gt': 0,
+    select: 'account,token',
+  });
 
-  let done = 0;
-  for(const contract of contracts) {
-    const balances = await fetchAll(`${TZKT}/tokens/balances`, {
-      'token.contract': contract,
-      'balance.gt': 0,
-      select: 'account,token,balance',
-    });
+  for(const b of balances) {
+    const addr = b.account?.address || b.account;
+    if(!addr || addr===wallet) continue;
+    if(!addr.startsWith('tz')) continue;
 
-    for(const b of balances) {
-      const addr = b.account?.address || b.account;
-      if(!addr || addr===wallet) continue; // exclude the artist's own wallet
-      if(!addr.startsWith('tz')) continue; // exclude contracts
+    const key = `${b.token?.contract?.address}:${b.token?.tokenId}`;
+    if(!tokenKeys.has(key)) continue;
 
-      const key = `${contract}:${b.token?.tokenId}`;
-      if(!tokenKeys.has(key)) continue; // only count tokens from this artist
-
-      if(!holderMap[addr]) holderMap[addr] = new Set();
-      holderMap[addr].add(key);
-    }
-
-    done++;
-    setProgress(40 + Math.round((done/contracts.length)*55));
-    await new Promise(r=>setTimeout(r,80));
+    if(!holderMap[addr]) holderMap[addr] = new Set();
+    holderMap[addr].add(key);
   }
 
   setStep(2,'done'); setProgress(100);
 
-  // Build sorted collector list: unique piece count (not edition count)
   const collectors = Object.entries(holderMap)
     .map(([addr, pieces]) => ({ addr, uniquePieces: pieces.size }))
     .sort((a,b) => b.uniquePieces - a.uniquePieces);
