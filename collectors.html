@@ -394,49 +394,31 @@ async function fetchAll(url, params={}) {
 // Fetch all token balances for tokens created/minted by this wallet,
 // held by OTHER wallets. Groups by holder → count of unique token contracts+ids.
 async function getCollectors(wallet) {
-  // Get all token balances where the token was originally from this wallet
-  // We use token.creator or we fetch tokens the wallet has minted (first holder)
-  // Strategy: fetch all token_balances where account != wallet and token.firstLevel minter = wallet
-  // TzKT: /v1/tokens/balances?token.metadata... — easiest is to get tokens minted by wallet first
-
   setStep(1,'active'); setProgress(10);
 
-  // Step 1: get all unique tokens ever held by/minted from this wallet
-  // We fetch token transfers where wallet was the sender (minter sends from null or self)
-  // Simpler: fetch token balances that have ever had wallet as 'from' in a transfer
-  // Best approach: get all tokens where wallet appears as the originating account
-  const tokenTransfers = await fetchAll(`${TZKT}/tokens/transfers`, {
-    from: wallet,
-    select: 'token',
+  // Use /v1/tokens?creator=wallet — the correct TzKT endpoint for all tokens
+  // this address minted. Covers all platforms: Objkt, FxHash, Teia, etc.
+  const minted = await fetchAll(`${TZKT}/tokens`, {
+    'creator': wallet,
+    select: 'contract,tokenId,metadata',
   });
 
-  // Collect unique token ids (contract + tokenId pairs)
+  // Filter out fungibles (decimals > 0). That's the only reliable filter —
+  // don't check artifactUri as it's often absent from inline responses.
   const tokenKeys = new Set();
-  const tokens = [];
-  for(const t of tokenTransfers) {
-    if(!t.token) continue;
-    // Filter out fungibles: must have no decimals and have visual metadata
-    const meta = t.token.metadata;
-    if(meta) {
-      const dec = meta.decimals!=null?parseInt(meta.decimals):-1;
-      if(dec>0) continue;
-      if(!meta.artifactUri&&!meta.displayUri&&!meta.thumbnailUri) continue;
-    }
-    const key = `${t.token.contract?.address}:${t.token.tokenId}`;
-    if(!tokenKeys.has(key)) {
-      tokenKeys.add(key);
-      tokens.push(t.token);
-    }
+  for(const t of minted) {
+    if(!t.contract?.address) continue;
+    const dec = t.metadata?.decimals!=null ? parseInt(t.metadata.decimals) : 0;
+    if(dec > 0) continue;
+    tokenKeys.add(`${t.contract.address}:${t.tokenId}`);
   }
 
-  if(!tokens.length) throw new Error('No NFTs found originating from this wallet.');
+  if(!tokenKeys.size) throw new Error('No minted tokens found for this wallet. Make sure you are entering the wallet you mint from.');
 
   setStep(1,'done'); setStep(2,'active'); setProgress(40);
 
-  // Step 2: for each token, fetch who currently holds a balance > 0 (excluding the wallet itself)
-  // Batch this: fetch token balances filtered to our token contracts
-  // Get all contracts involved
-  const contracts = [...new Set(tokens.map(t=>t.contract?.address).filter(Boolean))];
+  // Step 2: fetch current holders per contract, count unique pieces per holder
+  const contracts = [...new Set([...tokenKeys].map(k=>k.split(':')[0]))];
 
   // Fetch all current holders for tokens from these contracts
   // We fetch per-contract to stay within API limits
