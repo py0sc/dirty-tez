@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tezos Tools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --accent: #00ff88;
+    --accent-dim: #00ff8820;
+    --gold: #ffd166;
+    --gold-dim: #ffd16618;
+    --text: #e8e8f0;
+    --muted: #555570;
+    --font-mono: 'Space Mono', monospace;
+    --font-display: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 80px 24px 60px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .eyebrow::before {
+    content: '';
+    display: inline-block;
+    width: 24px; height: 1px;
+    background: var(--muted);
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2.8rem, 8vw, 5rem);
+    font-weight: 800;
+    line-height: 1.0;
+    letter-spacing: -0.03em;
+    margin-bottom: 16px;
+  }
+  h1 .tz { color: var(--accent); }
+
+  .tagline {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+    max-width: 460px;
+    margin-bottom: 64px;
+  }
+
+  .tools {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .tool-card {
+    display: block;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    padding: 28px 28px 24px;
+    transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .tool-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .tool-card.green::before { background: var(--accent-dim); }
+  .tool-card.gold::before  { background: var(--gold-dim); }
+  .tool-card:hover { transform: translateY(-2px); }
+  .tool-card.green:hover { border-color: var(--accent); box-shadow: 0 0 24px var(--accent-dim); }
+  .tool-card.green:hover::before { opacity: 1; }
+  .tool-card.gold:hover  { border-color: var(--gold); box-shadow: 0 0 24px var(--gold-dim); }
+  .tool-card.gold:hover::before  { opacity: 1; }
+
+  .tool-card-inner { position: relative; z-index: 1; }
+
+  .tool-tag {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tool-card.green .tool-tag { color: var(--accent); }
+  .tool-card.gold  .tool-tag { color: var(--gold); }
+  .tool-tag::before { content: ''; display: inline-block; width: 16px; height: 1px; }
+  .tool-card.green .tool-tag::before { background: var(--accent); }
+  .tool-card.gold  .tool-tag::before { background: var(--gold); }
+
+  .tool-name {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--text);
+    margin-bottom: 12px;
+    letter-spacing: -0.02em;
+  }
+
+  .tool-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+    margin-bottom: 24px;
+  }
+
+  .tool-arrow { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .tool-card.green .tool-arrow { color: var(--accent); }
+  .tool-card.gold  .tool-arrow { color: var(--gold); }
+
+  footer {
+    position: relative;
+    z-index: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 20px 24px 40px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+
+  @media (max-width: 560px) {
+    .tools { grid-template-columns: 1fr; }
+    h1 { font-size: 2.6rem; }
+    .container { justify-content: flex-start; padding-top: 60px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="eyebrow">On-chain Analysis</div>
+  <h1><span class="tz">Tezos</span><br>Tools</h1>
+  <p class="tagline">Open-source tools for Tezos artists and collectors. No backend, no login — everything runs in your browser via the TzKT API.</p>
+
+  <div class="tools">
+
+    <a class="tool-card green" href="wash.html">
+      <div class="tool-card-inner">
+        <div class="tool-tag">Fraud Detection</div>
+        <div class="tool-name">Wash Trade<br>Detector</div>
+        <div class="tool-desc">Scan any wallet for circular trading patterns — wallets that received XTZ from an address, then bought an NFT back from it.</div>
+        <div class="tool-arrow">Open tool →</div>
+      </div>
+    </a>
+
+    <a class="tool-card gold" href="collectors.html">
+      <div class="tool-card-inner">
+        <div class="tool-tag">Collector Intelligence</div>
+        <div class="tool-name">Top<br>Collectors</div>
+        <div class="tool-desc">Find who holds the most unique pieces of your work. Ranked by distinct works held, not edition count. Export to CSV.</div>
+        <div class="tool-arrow">Open tool →</div>
+      </div>
+    </a>
+
+  </div>
+</div>
+
+<footer>
+  <span><a href="https://tzkt.io" target="_blank">Powered by TzKT API</a> &middot; Free Tier</span>
+  <span>No data stored &middot; Queries run in your browser</span>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Top Collectors — Tezos Tools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --accent: #00ff88;
+    --accent-dim: #00ff8820;
+    --gold: #ffd166;
+    --gold-dim: #ffd16618;
+    --text: #e8e8f0;
+    --muted: #555570;
+    --font-mono: 'Space Mono', monospace;
+    --font-display: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 60px 24px 100px;
+  }
+
+  /* Nav back link */
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    margin-bottom: 48px;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: var(--accent); }
+  .back-link::before { content: '←'; font-size: 14px; }
+
+  header { margin-bottom: 48px; }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .eyebrow::before {
+    content: '';
+    display: inline-block;
+    width: 24px; height: 1px;
+    background: var(--gold);
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2.2rem, 6vw, 3.8rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+  h1 span { color: var(--gold); }
+
+  .subtitle {
+    margin-top: 16px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+    max-width: 540px;
+  }
+
+  /* Controls */
+  .controls { margin-bottom: 40px; display: flex; flex-direction: column; gap: 12px; }
+
+  .input-wrap {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+    background: var(--surface);
+  }
+  .input-wrap:focus-within {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 1px var(--gold), 0 0 20px var(--gold-dim);
+  }
+  .input-label {
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    background: var(--border);
+    color: var(--gold);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    user-select: none;
+  }
+  input[type="text"], input[type="number"] {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 16px 20px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    letter-spacing: 0.02em;
+  }
+  input::placeholder { color: var(--muted); }
+  input[type="number"] { max-width: 120px; }
+
+  .controls-row { display: flex; gap: 12px; align-items: stretch; }
+  .controls-row .input-wrap { flex: 1; }
+
+  button#runBtn {
+    padding: 0 28px;
+    background: var(--gold);
+    color: #0a0a0f;
+    border: none;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  button#runBtn:hover { background: #ffe08a; }
+  button#runBtn:active { transform: scale(0.98); }
+  button#runBtn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+  /* Progress */
+  #progress { display: none; margin-bottom: 32px; }
+  .progress-bar-wrap { height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 12px; }
+  .progress-bar { height: 100%; background: var(--gold); border-radius: 2px; transition: width 0.4s ease; box-shadow: 0 0 8px var(--gold); }
+  .progress-steps { display: flex; flex-direction: column; gap: 4px; }
+  .step { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; transition: color 0.2s; }
+  .step.active { color: var(--text); }
+  .step.done { color: var(--gold); }
+  .step-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); flex-shrink: 0; transition: background 0.2s; }
+  .step.active .step-dot { background: var(--text); box-shadow: 0 0 6px rgba(255,255,255,0.5); }
+  .step.done .step-dot { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
+
+  /* Error */
+  #error { display: none; padding: 16px 20px; border: 1px solid #ff6b35; border-radius: 4px; background: rgba(255,107,53,0.1); font-size: 13px; color: #ff6b35; margin-bottom: 24px; }
+
+  /* Results */
+  #results { display: none; }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .results-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; }
+  .results-meta { font-size: 11px; color: var(--muted); }
+
+  button#downloadBtn {
+    padding: 10px 20px;
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background 0.15s, color 0.15s;
+  }
+  button#downloadBtn:hover { background: var(--gold); color: #0a0a0f; }
+
+  /* Table */
+  .collector-table { width: 100%; border-collapse: collapse; }
+
+  .collector-table th {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .collector-table th.right { text-align: right; }
+
+  .collector-row {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+  .collector-row:hover { background: var(--surface); }
+  .collector-row:last-child { border-bottom: none; }
+
+  .collector-row td {
+    padding: 12px;
+    font-size: 13px;
+    vertical-align: middle;
+  }
+
+  .rank-cell {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1rem;
+    width: 48px;
+    color: var(--muted);
+  }
+  .rank-1 { color: var(--gold); }
+  .rank-2 { color: #c0c0c0; }
+  .rank-3 { color: #cd7f32; }
+
+  .addr-cell { font-size: 12px; }
+  .addr-full { color: var(--text); word-break: break-all; }
+  .addr-link { color: var(--muted); text-decoration: none; font-size: 11px; border: 1px solid var(--border); padding: 2px 7px; border-radius: 2px; margin-left: 8px; white-space: nowrap; transition: color 0.15s, border-color 0.15s; }
+  .addr-link:hover { color: var(--gold); border-color: var(--gold); }
+
+  .pieces-cell { text-align: right; font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; color: var(--gold); }
+  .editions-cell { text-align: right; color: var(--muted); font-size: 12px; }
+
+  /* Bar */
+  .bar-cell { width: 140px; padding-right: 16px; }
+  .bar-track { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--gold); border-radius: 2px; transition: width 0.6s ease; }
+
+  /* API limits */
+  .api-limits {
+    margin-top: 80px;
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .api-stat { display: flex; flex-direction: column; align-items: center; padding: 0 20px; }
+  .api-stat-val { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--accent); line-height: 1.2; }
+  .api-stat-label { font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
+  .api-stat-divider { width: 1px; height: 28px; background: var(--border); }
+
+  footer {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+
+  @media (max-width: 600px) {
+    .input-label { display: none; }
+    h1 { font-size: 2rem; }
+    .controls-row { flex-direction: column; }
+    button#runBtn { padding: 16px; }
+    .bar-cell { display: none; }
+    .addr-full { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <a class="back-link" href="index.html">All Tools</a>
+
+  <header>
+    <div class="eyebrow">Collector Intelligence</div>
+    <h1>Your Top<br><span>Collectors</span></h1>
+    <p class="subtitle">
+      Enter your wallet to find who holds the most <em>unique pieces</em> of your work.
+      100 editions of 1 piece = 1. 1 edition each of 100 pieces = 100.
+    </p>
+  </header>
+
+  <div class="controls">
+    <div class="input-wrap">
+      <div class="input-label">tz address</div>
+      <input type="text" id="walletInput" placeholder="tz1... your wallet address" spellcheck="false" autocomplete="off" />
+    </div>
+    <div class="controls-row">
+      <div class="input-wrap">
+        <div class="input-label">top #</div>
+        <input type="number" id="topN" value="25" min="1" max="500" />
+      </div>
+      <button id="runBtn" onclick="startScan()">FETCH</button>
+    </div>
+  </div>
+
+  <div id="error"></div>
+
+  <div id="progress">
+    <div class="progress-bar-wrap">
+      <div class="progress-bar" id="progressBar" style="width:0%"></div>
+    </div>
+    <div class="progress-steps">
+      <div class="step" id="step1"><div class="step-dot"></div><span>Fetching your token balances held by others...</span></div>
+      <div class="step" id="step2"><div class="step-dot"></div><span>Counting unique pieces per collector...</span></div>
+    </div>
+  </div>
+
+  <div id="results"></div>
+
+  <div class="api-limits">
+    <div style="display:flex;align-items:center;">
+      <a href="https://tzkt.io" target="_blank" style="color:var(--accent);font-weight:700;letter-spacing:0.05em;text-decoration:none;">Powered by TzKT API</a>
+      <span style="color:var(--muted);font-size:10px;margin-left:8px">Free Tier</span>
+    </div>
+    <div style="display:flex;align-items:center;">
+      <div class="api-stat"><span class="api-stat-val">10</span><span class="api-stat-label">calls / sec</span></div>
+      <div class="api-stat-divider"></div>
+      <div class="api-stat"><span class="api-stat-val">500k</span><span class="api-stat-label">calls / day</span></div>
+      <div class="api-stat-divider"></div>
+      <div class="api-stat"><span class="api-stat-val">Standard</span><span class="api-stat-label">support</span></div>
+    </div>
+  </div>
+
+  <footer>
+    <span>No data stored &middot; All queries run in your browser</span>
+    <span><a href="index.html">Home</a> &middot; <a href="wash.html">Wash Detector</a></span>
+  </footer>
+
+</div>
+<script>
+const TZKT = 'https://api.tzkt.io/v1';
+const $ = id => document.getElementById(id);
+
+function showError(msg) { const e=$('error'); e.textContent=msg; e.style.display='block'; }
+function hideError() { $('error').style.display='none'; }
+function setStep(n, s) { const e=$('step'+n); if(e) e.className='step '+s; }
+function setProgress(p) { $('progressBar').style.width=p+'%'; }
+function shortAddr(a) { return a?a.slice(0,8)+'...'+a.slice(-6):'—'; }
+
+async function fetchAll(url, params={}) {
+  const limit=500; let offset=0, results=[];
+  while(true){
+    const p=new URLSearchParams({...params,limit,offset});
+    const r=await fetch(`${url}?${p}`);
+    if(!r.ok) throw new Error(`API ${r.status}`);
+    const batch=await r.json();
+    if(!batch||!batch.length) break;
+    results=results.concat(batch);
+    if(batch.length<limit) break;
+    offset+=limit;
+    await new Promise(r=>setTimeout(r,120));
+  }
+  return results;
+}
+
+// Fetch all token balances for tokens created/minted by this wallet,
+// held by OTHER wallets. Groups by holder → count of unique token contracts+ids.
+async function getCollectors(wallet) {
+  // Get all token balances where the token was originally from this wallet
+  // We use token.creator or we fetch tokens the wallet has minted (first holder)
+  // Strategy: fetch all token_balances where account != wallet and token.firstLevel minter = wallet
+  // TzKT: /v1/tokens/balances?token.metadata... — easiest is to get tokens minted by wallet first
+
+  setStep(1,'active'); setProgress(10);
+
+  // Step 1: get all unique tokens ever held by/minted from this wallet
+  // We fetch token transfers where wallet was the sender (minter sends from null or self)
+  // Simpler: fetch token balances that have ever had wallet as 'from' in a transfer
+  // Best approach: get all tokens where wallet appears as the originating account
+  const tokenTransfers = await fetchAll(`${TZKT}/tokens/transfers`, {
+    from: wallet,
+    select: 'token',
+  });
+
+  // Collect unique token ids (contract + tokenId pairs)
+  const tokenKeys = new Set();
+  const tokens = [];
+  for(const t of tokenTransfers) {
+    if(!t.token) continue;
+    // Filter out fungibles: must have no decimals and have visual metadata
+    const meta = t.token.metadata;
+    if(meta) {
+      const dec = meta.decimals!=null?parseInt(meta.decimals):-1;
+      if(dec>0) continue;
+      if(!meta.artifactUri&&!meta.displayUri&&!meta.thumbnailUri) continue;
+    }
+    const key = `${t.token.contract?.address}:${t.token.tokenId}`;
+    if(!tokenKeys.has(key)) {
+      tokenKeys.add(key);
+      tokens.push(t.token);
+    }
+  }
+
+  if(!tokens.length) throw new Error('No NFTs found originating from this wallet.');
+
+  setStep(1,'done'); setStep(2,'active'); setProgress(40);
+
+  // Step 2: for each token, fetch who currently holds a balance > 0 (excluding the wallet itself)
+  // Batch this: fetch token balances filtered to our token contracts
+  // Get all contracts involved
+  const contracts = [...new Set(tokens.map(t=>t.contract?.address).filter(Boolean))];
+
+  // Fetch all current holders for tokens from these contracts
+  // We fetch per-contract to stay within API limits
+  const holderMap = {}; // address → Set of unique tokenKeys they hold
+
+  let done = 0;
+  for(const contract of contracts) {
+    const balances = await fetchAll(`${TZKT}/tokens/balances`, {
+      'token.contract': contract,
+      'balance.gt': 0,
+      select: 'account,token,balance',
+    });
+
+    for(const b of balances) {
+      const addr = b.account?.address || b.account;
+      if(!addr || addr===wallet) continue; // exclude the artist's own wallet
+      if(!addr.startsWith('tz')) continue; // exclude contracts
+
+      const key = `${contract}:${b.token?.tokenId}`;
+      if(!tokenKeys.has(key)) continue; // only count tokens from this artist
+
+      if(!holderMap[addr]) holderMap[addr] = new Set();
+      holderMap[addr].add(key);
+    }
+
+    done++;
+    setProgress(40 + Math.round((done/contracts.length)*55));
+    await new Promise(r=>setTimeout(r,80));
+  }
+
+  setStep(2,'done'); setProgress(100);
+
+  // Build sorted collector list: unique piece count (not edition count)
+  const collectors = Object.entries(holderMap)
+    .map(([addr, pieces]) => ({ addr, uniquePieces: pieces.size }))
+    .sort((a,b) => b.uniquePieces - a.uniquePieces);
+
+  return collectors;
+}
+
+function downloadCSV(collectors, wallet, topN) {
+  const rows = [['Rank','Address','Unique Pieces']];
+  collectors.slice(0,topN).forEach((c,i) => {
+    rows.push([i+1, c.addr, c.uniquePieces]);
+  });
+  const csv = rows.map(r=>r.join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=`top-collectors-${wallet.slice(0,8)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function renderResults(collectors, wallet, topN) {
+  const container = $('results');
+  container.style.display = 'block';
+  const shown = collectors.slice(0, topN);
+  const maxPieces = shown[0]?.uniquePieces || 1;
+
+  container.innerHTML = `
+    <div class="results-header">
+      <div>
+        <div class="results-title">Top ${shown.length} Collectors</div>
+        <div class="results-meta">${collectors.length} total unique collectors found &middot; ranked by unique pieces held</div>
+      </div>
+      <button id="downloadBtn" onclick="downloadCSV(window._collectors, '${wallet}', ${topN})">&#8595; Download CSV</button>
+    </div>
+    <table class="collector-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Collector</th>
+          <th class="right">Unique Pieces</th>
+          <th class="right bar-cell"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${shown.map((c,i) => `
+          <tr class="collector-row">
+            <td class="rank-cell rank-${i+1}">${i+1}</td>
+            <td class="addr-cell">
+              <span class="addr-full">${c.addr}</span>
+              <a class="addr-link" href="https://tzkt.io/${c.addr}" target="_blank">TzKT ↗</a>
+              <a class="addr-link" href="https://objkt.com/profile/${c.addr}/collected" target="_blank">Objkt ↗</a>
+            </td>
+            <td class="pieces-cell">${c.uniquePieces}</td>
+            <td class="bar-cell">
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${Math.round((c.uniquePieces/maxPieces)*100)}%"></div>
+              </div>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+
+  window._collectors = collectors;
+}
+
+async function startScan() {
+  const wallet = $('walletInput').value.trim();
+  const topN = parseInt($('topN').value) || 25;
+  hideError();
+  $('results').style.display='none';
+  $('results').innerHTML='';
+
+  if(!wallet) { showError('Please enter your Tezos wallet address.'); return; }
+  if(!/^(tz1|tz2|tz3)[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet)) {
+    showError('Invalid address. Must be tz1, tz2, or tz3.');
+    return;
+  }
+
+  const btn=$('runBtn');
+  btn.disabled=true; btn.textContent='FETCHING';
+  $('progress').style.display='block';
+  setStep(1,''); setStep(2,'');
+  setProgress(0);
+
+  try {
+    const collectors = await getCollectors(wallet);
+    await new Promise(r=>setTimeout(r,300));
+    $('progress').style.display='none';
+    renderResults(collectors, wallet, topN);
+  } catch(err) {
+    $('progress').style.display='none';
+    showError(`Failed: ${err.message}`);
+    console.error(err);
+  } finally {
+    btn.disabled=false; btn.textContent='FETCH';
+  }
+}
+
+$('walletInput').addEventListener('keydown', e => { if(e.key==='Enter') startScan(); });
+$('topN').addEventListener('keydown', e => { if(e.key==='Enter') startScan(); });
+</script>
+</body>
+</html>
