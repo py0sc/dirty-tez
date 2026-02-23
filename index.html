@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>py0sc Hub</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Staatliches&display=swap" rel="stylesheet">
+
+<style>
+/* ================= BASE ================= */
+* { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --glitch-red:#ff0039;
+  --glitch-cyan:#00f0ff;
+  --glitch-green:#39ff14;
+  --dark-bg:#0a0a0a;
+  --darker-bg:#050505;
+  --light-text:#e0e0e0;
+}
+
+body {
+  font-family:'JetBrains Mono', monospace;
+  background:var(--dark-bg);
+  color:var(--light-text);
+  overflow-x:hidden;
+  position:relative;
+}
+
+/* Scanlines */
+body::before {
+  content:'';
+  position:fixed;
+  inset:0;
+  background:repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,.15),
+      rgba(0,0,0,.15) 1px,
+      transparent 1px,
+      transparent 2px
+  );
+  pointer-events:none;
+  z-index:9999;
+  animation:scanlines 8s linear infinite;
+}
+@keyframes scanlines { to { transform:translateY(10px); } }
+
+/* VHS Noise */
+body::after {
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events:none;
+  opacity:.5;
+}
+
+.container {
+  max-width:1200px;
+  margin:0 auto;
+  padding:80px 40px;
+  position:relative;
+  z-index:10;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+
+/* ================= HEADER ================= */
+header { text-align:center; margin-bottom:60px; }
+
+.glitch-title {
+  font-family:'Staatliches', cursive;
+  font-size:clamp(4rem,12vw,9rem);
+  letter-spacing:.15em;
+  display:inline-flex;
+}
+
+.letter {
+  position:relative;
+  display:inline-block;
+  animation:letter-jitter 3s infinite steps(2);
+}
+
+@keyframes letter-jitter {
+  0% { transform:translate(0,0); }
+  20% { transform:translate(1px,-1px); }
+  40% { transform:translate(-1px,1px); }
+  60% { transform:translate(1px,1px); }
+  80% { transform:translate(-1px,-1px); }
+}
+
+/* RGB split */
+.letter::before,
+.letter::after {
+  content:attr(data-letter);
+  position:absolute;
+  top:0;
+  left:0;
+  opacity:.8;
+}
+
+.letter::before { color:var(--glitch-cyan); transform:translate(-2px,0); }
+.letter::after { color:var(--glitch-red); transform:translate(2px,0); }
+
+/* Subheader glitch */
+.sub-glitch {
+  margin-top:20px;
+  font-size:1.2rem;
+  letter-spacing:.35em;
+  text-transform:uppercase;
+  color:var(--glitch-green);
+  position:relative;
+  display:inline-block;
+  animation:pixel-sort 2.5s infinite steps(2);
+}
+
+@keyframes pixel-sort {
+  0% { clip-path:inset(0 0 0 0); transform:translateX(0); }
+  20% { clip-path:inset(0 0 60% 0); transform:translateX(-3px); }
+  40% { clip-path:inset(40% 0 0 0); transform:translateX(3px); }
+  60% { clip-path:inset(0 0 30% 0); transform:translateX(-2px); }
+  80% { clip-path:inset(20% 0 0 0); transform:translateX(2px); }
+  100% { clip-path:inset(0 0 0 0); transform:translateX(0); }
+}
+
+.sub-glitch::before,
+.sub-glitch::after {
+  content:attr(data-text);
+  position:absolute;
+  top:0;
+  left:0;
+  opacity:.6;
+}
+
+.sub-glitch::before { color:#00ff88; transform:translate(-2px,0); }
+.sub-glitch::after { color:#00aa44; transform:translate(2px,0); }
+
+/* Tagline */
+.tagline {
+  margin-top:24px;
+  max-width:600px;
+  font-size:1rem;
+  color:#bbb;
+  line-height:1.5;
+  text-align:center;
+}
+
+/* ================= LINKS ================= */
+.link-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:24px;
+  margin-top:60px;
+  width:100%;
+  max-width:700px;
+}
+
+.link-card {
+  display:block;
+  padding:28px 24px;
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:6px;
+  text-decoration:none;
+  color:var(--light-text);
+  background:var(--darker-bg);
+  transition:0.3s;
+  position:relative;
+}
+
+.link-card:hover {
+  transform:translateY(-2px);
+  box-shadow:0 0 16px var(--glitch-cyan);
+  border-color:var(--glitch-cyan);
+}
+
+.link-card h3 {
+  font-family:'Staatliches', cursive;
+  font-size:1.4rem;
+  margin-bottom:12px;
+}
+
+.link-card p {
+  font-size:0.85rem;
+  color:#aaa;
+  line-height:1.4;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1 class="glitch-title">
+      <span class="letter" data-letter="p">p</span>
+      <span class="letter" data-letter="y">y</span>
+      <span class="letter" data-letter="0">0</span>
+      <span class="letter" data-letter="s">s</span>
+      <span class="letter" data-letter="c">c</span>
+    </h1>
+    <div class="sub-glitch" data-text="GLITCH BY CODE">GLITCH BY CODE</div>
+    <p class="tagline">Open-source tools for Tezos artists and collectors. No backend, no login — everything runs in your browser via the TzKT API.</p>
+  </header>
+
+  <div class="link-grid">
+    <a class="link-card" href="tools.html">
+      <h3>Tools</h3>
+      <p>Wash Trade Checker, Top Collectors, and other on-chain analysis tools for Tezos artists and collectors.</p>
+    </a>
+    <a class="link-card" href="tezos.html">
+      <h3>Gallery</h3>
+      <p>View my Tezos NFT collection and browse your favorite OBJKT works directly in the gallery.</p>
+    </a>
+  </div>
+</div>
+</body>
+</html>
