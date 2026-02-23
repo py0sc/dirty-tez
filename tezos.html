@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>py0sc — Tezos Gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0a0a0f; --surface:#111118; --border:#1e1e2e;
+  --accent:#00ff88; --accent-dim:#00ff8820; --gold:#ffd166; --gold-dim:#ffd16618;
+  --text:#e8e8f0; --muted:#555570; --font-mono:'Space Mono', monospace;
+  --font-display:'Syne', sans-serif;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-mono);min-height:100vh;overflow-x:hidden;}
+
+.container{position:relative;z-index:1;max-width:860px;margin:0 auto;padding:80px 24px 60px;display:flex;flex-direction:column;justify-content:center;}
+
+.back-link{display:inline-flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-decoration:none;margin-bottom:40px;transition:color .15s;}
+.back-link:hover{color:var(--accent);}
+.back-link::before{content:'←';font-size:14px;}
+
+header{margin-bottom:40px;}
+.eyebrow{font-size:11px;letter-spacing:.2em;color:var(--gold);text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px;}
+.eyebrow::before{content:'';display:inline-block;width:24px;height:1px;background:var(--gold);}
+h1{font-family:var(--font-display);font-size:clamp(2.2rem,6vw,3.8rem);font-weight:800;line-height:1.05;letter-spacing:-.02em;}
+h1 span{color:var(--gold);}
+.subtitle{margin-top:16px;color:var(--muted);font-size:13px;line-height:1.7;max-width:540px;margin-bottom:48px;}
+
+.gallery{display:grid;grid-template-columns:repeat(2,1fr);gap:24px;}
+@media(max-width:600px){.gallery{grid-template-columns:1fr;}}
+
+.nft-card{display:block;text-decoration:none;border:1px solid var(--border);border-radius:4px;background:var(--surface);overflow:hidden;transition:border-color .2s,transform .15s,box-shadow .2s;position:relative;}
+.nft-card:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:0 0 24px var(--accent-dim);}
+.nft-image-wrapper{position:relative;width:100%;padding-top:100%;}
+.nft-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+.nft-info{padding:20px;}
+.nft-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;margin-bottom:8px;}
+.nft-meta{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+.supply{color:var(--accent);}
+
+footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+footer a{color:var(--muted);text-decoration:none;}
+footer a:hover{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <a class="back-link" href="index.html">← All Tools</a>
+
+  <header>
+    <div class="eyebrow">Tezos Gallery</div>
+    <h1>Your <span>NFTs</span></h1>
+    <p class="subtitle">All your creations on Objkt in a single view. Click any card to open it on Objkt.</p>
+  </header>
+
+  <div id="gallery" class="gallery"></div>
+
+  <footer>
+    <span>Powered by Objkt API &middot; Free Tier</span>
+    <span><a href="index.html">Home</a></span>
+  </footer>
+</div>
+
+<script>
+const walletAddress = 'tz1RFGemQYuW9ctkJodYFRxhsdqvCZpYfvjh';
+const apiUrl = 'https://data.objkt.com/v3/graphql';
+
+const query = `
+query GetUserTokens($address: String!) {
+  token(
+    where: { creators: { creator_address: {_eq: $address} } }
+    limit: 100
+  ) {
+    token_id
+    name
+    thumbnail_uri
+    display_uri
+    artifact_uri
+    mime
+    fa_contract
+    supply
+  }
+}`;
+
+async function fetchNFTs() {
+    try {
+        const res = await fetch(apiUrl,{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({query,variables:{address:walletAddress}})
+        });
+        const data = await res.json();
+        const tokens = data.data.token;
+        if(!tokens || tokens.length===0) return;
+        const gallery = document.getElementById('gallery');
+
+        tokens.forEach(t=>{
+            const uri=(t.display_uri||t.thumbnail_uri||t.artifact_uri||'').replace('ipfs://','https://ipfs.io/ipfs/');
+            if(!uri) return;
+            const objktUrl=`https://objkt.com/asset/${t.fa_contract}/${t.token_id}`;
+
+            gallery.insertAdjacentHTML('beforeend',`
+                <a href="${objktUrl}" target="_blank" class="nft-card">
+                    <div class="nft-image-wrapper">
+                        <img src="${uri}" class="nft-image" loading="lazy">
+                    </div>
+                    <div class="nft-info">
+                        <div class="nft-name">${t.name||'Untitled'}</div>
+                        <div class="nft-meta">
+                            <span class="supply">Supply ${t.supply}</span>
+                        </div>
+                    </div>
+                </a>
+            `);
+        });
+    } catch(err){
+        document.getElementById('gallery').innerHTML='<p style="color:red;">Failed to load NFTs</p>';
+    }
+}
+
+fetchNFTs();
+</script>
+</body>
+</html>
